@@ -3,12 +3,6 @@
 -- System: FilmCraft (Letterboxd+) Cinema & Festival Curator Platform
 -- Engine: MySQL 8.x
 -- All queries strictly comply with course restrictions from AGY.md:
---   ❌ NO CTEs (WITH) -> Used derived tables in FROM ((...) AS t)
---   ❌ NO Window functions (OVER/RANK) -> Used correlated subqueries
---   ❌ NO Procedural SQL -> Pure declarative SQL
---   ❌ NO LIMIT for extremal queries -> Used >= ALL (...)
---   ❌ NO Dynamic date functions -> Used fixed literal timestamps
--- ====================================================================
 
 USE `filmcraft`;
 
@@ -21,7 +15,7 @@ USE `filmcraft`;
 START TRANSACTION;
 
 INSERT INTO `reviews` (`user_id`, `movie_id`, `rating`, `review_text`, `contains_spoilers`, `watch_date`, `created_at`)
-VALUES (2, 7, 10, 'Dune Part Two was breathtaking in IMAX. Peak sci-fi filmmaking.', FALSE, '2026-10-15', '2026-10-15 22:30:00');
+VALUES (2, 7, 5, 'Dune Part Two was breathtaking in IMAX. Peak sci-fi filmmaking.', FALSE, '2026-10-15', '2026-10-15 22:30:00');
 
 UPDATE `cinephiles`
 SET `favorite_genre` = 'Sci-Fi'
@@ -109,9 +103,9 @@ JOIN `movies` prequel
 -- ====================================================================
 
 -- Query 3.1: Director Performance Aggregation
--- Purpose: Find directors whose films have received at least 2 reviews, with an overall average rating >= 8.5
+-- Purpose: Find directors whose films have received at least 2 reviews, with an overall average rating >= 4.25
 -- Relational Algebra:
---   \sigma_{avg_score \ge 8.5 \land review_cnt \ge 2}(
+--   \sigma_{avg_score \ge 4.25 \land review_cnt \ge 2}(
 --       _{person_id, director_name}\mathcal{G}_{AVG(rating) \to avg_score, COUNT(review_id) \to review_cnt}(
 --           FilmProfessional \bowtie \sigma_{role='DIRECTOR'}(MovieCastCrew) \bowtie Movie \bowtie Review
 --       )
@@ -130,7 +124,7 @@ JOIN `movies` M
 JOIN `reviews` R 
     ON M.`movie_id` = R.`movie_id`
 GROUP BY FP.`person_id`, FP.`name`
-HAVING COUNT(R.`review_id`) >= 2 AND AVG(R.`rating`) >= 8.5
+HAVING COUNT(R.`review_id`) >= 2 AND AVG(R.`rating`) >= 4.25
 ORDER BY `average_director_rating` DESC, `total_reviews_received` DESC;
 
 
@@ -139,7 +133,7 @@ ORDER BY `average_director_rating` DESC, `total_reviews_received` DESC;
 -- ====================================================================
 
 -- Query 4.1: Universal Set Comparison (>= ALL)
--- Purpose: Find the single or tied film(s) that achieved the GREATEST count of maximum (10/10) ratings
+-- Purpose: Find the single or tied film(s) that achieved the GREATEST count of maximum (5/5 stars) ratings
 -- NOTE: Complies with syllabus rule: NO 'ORDER BY ... LIMIT 1' hack!
 SELECT 
     M.`movie_id`,
@@ -148,17 +142,17 @@ SELECT
 FROM `movies` M
 JOIN `reviews` R 
     ON M.`movie_id` = R.`movie_id`
-WHERE R.`rating` = 10
+WHERE R.`rating` = 5
 GROUP BY M.`movie_id`, M.`title`
 HAVING COUNT(R.`review_id`) >= ALL (
     SELECT COUNT(R2.`review_id`)
     FROM `reviews` R2
-    WHERE R2.`rating` = 10
+    WHERE R2.`rating` = 5
     GROUP BY R2.`movie_id`
 );
 
 -- Query 4.2: Correlated Subquery with NOT EXISTS
--- Purpose: Find all accredited film critics who have NEVER given any film a rating below 9
+-- Purpose: Find all accredited film critics who have NEVER given any film a rating below 4 stars
 SELECT 
     U.`user_id`,
     U.`username`,
@@ -170,7 +164,7 @@ WHERE NOT EXISTS (
     SELECT 1
     FROM `reviews` R
     WHERE R.`user_id` = U.`user_id`
-      AND R.`rating` < 9
+      AND R.`rating` < 4
 );
 
 -- Query 4.3: Derived Table in the FROM Clause (CTE Alternative)

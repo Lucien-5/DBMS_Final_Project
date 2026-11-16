@@ -36,45 +36,57 @@ CREATE TABLE `users` (
     `username` VARCHAR(50) NOT NULL,
     `email` VARCHAR(100) NOT NULL,
     `password_hash` VARCHAR(255) NOT NULL,
-    `role` ENUM('CINEPHILE', 'CRITIC', 'CURATOR') NOT NULL DEFAULT 'CINEPHILE',
+    `role` VARCHAR(20) NOT NULL DEFAULT 'CINEPHILE',
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT `pk_users` PRIMARY KEY (`user_id`),
     CONSTRAINT `uq_users_username` UNIQUE (`username`),
-    CONSTRAINT `uq_users_email` UNIQUE (`email`)
+    CONSTRAINT `uq_users_email` UNIQUE (`email`),
+    CONSTRAINT `chk_users_role` CHECK (`role` IN ('CINEPHILE', 'CRITIC', 'CURATOR')),
+    -- Composite unique key required to enforce disjoint ISA specialization via composite FK
+    CONSTRAINT `uq_users_user_role` UNIQUE (`user_id`, `role`)
 ) ENGINE=InnoDB;
 
 -- Subclass 1: Cinephiles (General audience)
+-- Enforces ISA Disjointness & Role Consistency via VARCHAR domain CHECK + composite FK
 CREATE TABLE `cinephiles` (
     `user_id` INT NOT NULL,
+    `role` VARCHAR(20) NOT NULL DEFAULT 'CINEPHILE',
     `bio` TEXT,
     `favorite_genre` VARCHAR(50),
     `membership_tier` ENUM('FREE', 'PRO', 'PATRON') NOT NULL DEFAULT 'FREE',
     CONSTRAINT `pk_cinephiles` PRIMARY KEY (`user_id`),
-    CONSTRAINT `fk_cinephiles_user` FOREIGN KEY (`user_id`)
-        REFERENCES `users` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT `chk_cinephiles_role` CHECK (`role` = 'CINEPHILE'),
+    CONSTRAINT `fk_cinephiles_user_role` FOREIGN KEY (`user_id`, `role`)
+        REFERENCES `users` (`user_id`, `role`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Subclass 2: Film Critics (Accredited reviewers)
+-- Enforces ISA Disjointness & Role Consistency via VARCHAR domain CHECK + composite FK
 CREATE TABLE `film_critics` (
     `user_id` INT NOT NULL,
+    `role` VARCHAR(20) NOT NULL DEFAULT 'CRITIC',
     `publication_name` VARCHAR(100) NOT NULL,
     `critic_license_no` VARCHAR(50) NOT NULL,
     `is_verified` BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT `pk_film_critics` PRIMARY KEY (`user_id`),
     CONSTRAINT `uq_critics_license` UNIQUE (`critic_license_no`),
-    CONSTRAINT `fk_film_critics_user` FOREIGN KEY (`user_id`)
-        REFERENCES `users` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT `chk_critics_role` CHECK (`role` = 'CRITIC'),
+    CONSTRAINT `fk_film_critics_user_role` FOREIGN KEY (`user_id`, `role`)
+        REFERENCES `users` (`user_id`, `role`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Subclass 3: Festival Curators (Festival directors & programmers)
+-- Enforces ISA Disjointness & Role Consistency via VARCHAR domain CHECK + composite FK
 CREATE TABLE `festival_curators` (
     `user_id` INT NOT NULL,
+    `role` VARCHAR(20) NOT NULL DEFAULT 'CURATOR',
     `festival_organization` VARCHAR(120) NOT NULL,
     `accreditation_id` VARCHAR(50) NOT NULL,
     CONSTRAINT `pk_festival_curators` PRIMARY KEY (`user_id`),
     CONSTRAINT `uq_curator_accreditation` UNIQUE (`accreditation_id`),
-    CONSTRAINT `fk_curators_user` FOREIGN KEY (`user_id`)
-        REFERENCES `users` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT `chk_curators_role` CHECK (`role` = 'CURATOR'),
+    CONSTRAINT `fk_curators_user_role` FOREIGN KEY (`user_id`, `role`)
+        REFERENCES `users` (`user_id`, `role`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- --------------------------------------------------------------------
@@ -87,6 +99,7 @@ CREATE TABLE `movies` (
     `duration_minutes` INT NOT NULL,
     `language` VARCHAR(50) NOT NULL DEFAULT 'English',
     `synopsis` TEXT,
+    `poster_url` VARCHAR(500) NULL,
     `prequel_movie_id` INT NULL,
     CONSTRAINT `pk_movies` PRIMARY KEY (`movie_id`),
     CONSTRAINT `chk_movie_year` CHECK (`release_year` >= 1888),
@@ -184,7 +197,7 @@ CREATE TABLE `reviews` (
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT `pk_reviews` PRIMARY KEY (`review_id`),
     CONSTRAINT `uq_user_movie_review` UNIQUE (`user_id`, `movie_id`),
-    CONSTRAINT `chk_rating_range` CHECK (`rating` BETWEEN 1 AND 10),
+    CONSTRAINT `chk_rating_range` CHECK (`rating` BETWEEN 0 AND 5),
     CONSTRAINT `fk_reviews_user` FOREIGN KEY (`user_id`)
         REFERENCES `users` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_reviews_movie` FOREIGN KEY (`movie_id`)
