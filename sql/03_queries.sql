@@ -270,17 +270,46 @@ SELECT
     FP.`name` AS `director_name`,
     FP.`nationality`,
     COUNT(DISTINCT M.`movie_id`) AS `total_films_directed`,
-    COUNT(R.`review_id`) AS `total_community_reviews`,
-    ROUND(AVG(R.`rating`), 2) AS `average_rating`,
-    COUNT(DISTINCT AN.`nomination_id`) AS `total_festival_nominations`,
-    SUM(CASE WHEN AN.`is_winner` = TRUE THEN 1 ELSE 0 END) AS `total_awards_won`
+    COALESCE(ReviewStats.`total_community_reviews`, 0) AS `total_community_reviews`,
+    ROUND(ReviewStats.`average_rating`, 2) AS `average_rating`,
+    COALESCE(AwardStats.`total_festival_nominations`, 0) AS `total_festival_nominations`,
+    COALESCE(AwardStats.`total_awards_won`, 0) AS `total_awards_won`
 FROM `film_professionals` FP
-JOIN `movie_cast_crew` MCC 
+JOIN `movie_cast_crew` MCC
     ON FP.`person_id` = MCC.`person_id` AND MCC.`role_type` = 'DIRECTOR'
-JOIN `movies` M 
+JOIN `movies` M
     ON MCC.`movie_id` = M.`movie_id`
-LEFT JOIN `reviews` R 
-    ON M.`movie_id` = R.`movie_id`
-LEFT JOIN `award_nominations` AN 
-    ON (AN.`movie_id` = M.`movie_id` OR AN.`person_id` = FP.`person_id`)
-GROUP BY FP.`person_id`, FP.`name`, FP.`nationality`;
+LEFT JOIN (
+    SELECT MCC.`person_id`,
+           COUNT(R.`review_id`) AS `total_community_reviews`,
+           AVG(R.`rating`) AS `average_rating`
+    FROM `movie_cast_crew` MCC
+    JOIN `reviews` R
+        ON MCC.`movie_id` = R.`movie_id`
+    WHERE MCC.`role_type` = 'DIRECTOR'
+    GROUP BY MCC.`person_id`
+) AS ReviewStats
+    ON FP.`person_id` = ReviewStats.`person_id`
+LEFT JOIN (
+    SELECT NominationMatches.`person_id`,
+           COUNT(*) AS `total_festival_nominations`,
+           SUM(CASE WHEN NominationMatches.`is_winner` = TRUE THEN 1 ELSE 0 END) AS `total_awards_won`
+    FROM (
+        SELECT MCC.`person_id`, AN.`nomination_id`, AN.`is_winner`
+        FROM `movie_cast_crew` MCC
+        JOIN `award_nominations` AN
+            ON AN.`movie_id` = MCC.`movie_id`
+        WHERE MCC.`role_type` = 'DIRECTOR'
+
+        UNION
+
+        SELECT AN.`person_id`, AN.`nomination_id`, AN.`is_winner`
+        FROM `award_nominations` AN
+        WHERE AN.`person_id` IS NOT NULL
+    ) AS NominationMatches
+    GROUP BY NominationMatches.`person_id`
+) AS AwardStats
+    ON FP.`person_id` = AwardStats.`person_id`
+GROUP BY FP.`person_id`, FP.`name`, FP.`nationality`,
+         ReviewStats.`total_community_reviews`, ReviewStats.`average_rating`,
+         AwardStats.`total_festival_nominations`, AwardStats.`total_awards_won`;
